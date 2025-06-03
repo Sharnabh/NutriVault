@@ -155,14 +155,29 @@ const UserDashboard = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-2xl font-bold text-gray-900">User Dashboard</h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Close dashboard"
-            type="button"
-          >
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                await logout();
+                showToast('Logged out successfully!', 'success');
+                setTimeout(() => {
+                  handleClose();
+                }, 1000);
+              }}
+              className="px-4 py-2 bg-red-100 text-red-600 rounded hover:bg-red-200 font-medium transition-colors"
+              type="button"
+            >
+              Logout
+            </button>
+            <button
+              onClick={handleClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label="Close dashboard"
+              type="button"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}

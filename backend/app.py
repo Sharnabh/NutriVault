@@ -459,18 +459,18 @@ def get_nutrition_summary():
     try:
         firebase_uid = request.user['uid']
         date_filter = request.args.get('date', datetime.now().date())
-
+        
         conn = sqlite3.connect('nutrivault.db')
         cursor = conn.cursor()
-
+        
         # Get user ID
         cursor.execute('SELECT id FROM users WHERE firebase_uid = ?', (firebase_uid,))
         user_row = cursor.fetchone()
         if not user_row:
             return jsonify({'error': 'User not found'}), 404
-
+        
         user_id = user_row[0]
-
+        
         # Get daily totals
         cursor.execute('''
             SELECT 
@@ -482,9 +482,9 @@ def get_nutrition_summary():
             FROM meal_logs 
             WHERE user_id = ? AND logged_date = ?
         ''', (user_id, date_filter))
-
+        
         totals = cursor.fetchone()
-
+        
         # Get current goals (latest for user)
         cursor.execute('''
             SELECT target_calories, target_protein, target_carbs, target_fat
@@ -493,11 +493,11 @@ def get_nutrition_summary():
             ORDER BY created_at DESC 
             LIMIT 1
         ''', (user_id,))
-
+        
         goals = cursor.fetchone()
-
+        
         conn.close()
-
+        
         summary = {
             'date': str(date_filter),
             'totals': {
@@ -510,7 +510,7 @@ def get_nutrition_summary():
             'goals': None,
             'progress': None
         }
-
+        
         if goals:
             summary['goals'] = {
                 'calories': round(goals[0] or 0),
@@ -537,12 +537,12 @@ def get_nutrition_summary():
                 'carbs': 0,
                 'fat': 0
             }
-
+        
         return jsonify({
             'success': True,
             'summary': summary
         })
-
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -925,6 +925,74 @@ def update_user_profile():
         
     except Exception as e:
         print(f"Error updating profile: {str(e)}")  # Add logging
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/meals/<int:meal_id>', methods=['PUT'])
+@firebase_auth_required
+def update_meal(meal_id):
+    """Update a logged meal (serving size, meal type, etc.)"""
+    try:
+        firebase_uid = request.user['uid']
+        data = request.get_json()
+
+        conn = sqlite3.connect('nutrivault.db')
+        cursor = conn.cursor()
+
+        # Get user ID
+        cursor.execute('SELECT id FROM users WHERE firebase_uid = ?', (firebase_uid,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            return jsonify({'error': 'User not found'}), 404
+        user_id = user_row[0]
+
+        # Ensure the meal belongs to the user
+        cursor.execute('SELECT id FROM meal_logs WHERE id = ? AND user_id = ?', (meal_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'error': 'Meal not found or not authorized'}), 404
+
+        # Update allowed fields
+        update_fields = []
+        params = []
+        for field in ['serving_size', 'serving_unit', 'calories', 'protein', 'carbs', 'fat', 'meal_type', 'logged_date']:
+            if field in data:
+                update_fields.append(f"{field} = ?")
+                params.append(data[field])
+        if not update_fields:
+            conn.close()
+            return jsonify({'error': 'No fields to update'}), 400
+        params.append(meal_id)
+        cursor.execute(f"UPDATE meal_logs SET {', '.join(update_fields)} WHERE id = ?", params)
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Meal updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/meals/<int:meal_id>', methods=['DELETE'])
+@firebase_auth_required
+def delete_meal(meal_id):
+    """Delete a logged meal"""
+    try:
+        firebase_uid = request.user['uid']
+        conn = sqlite3.connect('nutrivault.db')
+        cursor = conn.cursor()
+        # Get user ID
+        cursor.execute('SELECT id FROM users WHERE firebase_uid = ?', (firebase_uid,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            return jsonify({'error': 'User not found'}), 404
+        user_id = user_row[0]
+        # Ensure the meal belongs to the user
+        cursor.execute('SELECT id FROM meal_logs WHERE id = ? AND user_id = ?', (meal_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({'error': 'Meal not found or not authorized'}), 404
+        cursor.execute('DELETE FROM meal_logs WHERE id = ?', (meal_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Meal deleted successfully'})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

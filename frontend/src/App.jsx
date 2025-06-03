@@ -11,6 +11,8 @@ import Toast from './components/Toast';
 import AuthModal from './components/AuthModal';
 import UserDashboard from './components/UserDashboard';
 import MealLogModal from './components/MealLogModal';
+import MealLogPage from './components/MealLogPage';
+import AnalyticsPage from './components/AnalyticsPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { nutritionAPI } from './services/api';
 
@@ -30,6 +32,7 @@ function MainApp() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isMealLogModalOpen, setIsMealLogModalOpen] = useState(false);
+  const [activePage, setActivePage] = useState('main'); // 'main', 'dashboard', 'meallog', 'analytics'
 
   // Check backend health on mount
   useEffect(() => {
@@ -158,11 +161,21 @@ function MainApp() {
   };
 
   const handleOpenDashboard = () => {
+    setActivePage('dashboard');
     setIsDashboardOpen(true);
   };
 
   const handleCloseDashboard = () => {
     setIsDashboardOpen(false);
+    setActivePage('main');
+  };
+
+  const handleOpenMealLogPage = () => {
+    setActivePage('meallog');
+  };
+
+  const handleOpenAnalytics = () => {
+    setActivePage('analytics');
   };
 
   const renderStatusBanner = () => {
@@ -262,6 +275,20 @@ function MainApp() {
                     <User size={16} />
                     <span>Dashboard</span>
                   </button>
+                  <button
+                    onClick={handleOpenMealLogPage}
+                    className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    <Utensils size={16} />
+                    <span>Meal Log</span>
+                  </button>
+                  <button
+                    onClick={handleOpenAnalytics}
+                    className="flex items-center space-x-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                  >
+                    <TrendingUp size={16} />
+                    <span>Analytics</span>
+                  </button>
                 </div>
               ) : (
                 <button
@@ -272,100 +299,105 @@ function MainApp() {
                   <span>Sign In</span>
                 </button>
               )}
-              <div className="text-sm text-gray-500">
-                Powered by USDA FoodData Central
-              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {renderStatusBanner()}
-        
-        {searchResults.length === 0 && searchHistory.length === 0 && (
-          <>
-            {renderHeroSection()}
-            <QuickSearch onSearch={handleSearch} className="mb-12" />
-          </>
-        )}
+      {/* Main Content Routing */}
+      {activePage === 'meallog' ? (
+        <MealLogPage onBack={() => setActivePage('main')} />
+      ) : activePage === 'dashboard' ? (
+        <UserDashboard isOpen={isDashboardOpen} onClose={handleCloseDashboard} />
+      ) : activePage === 'analytics' ? (
+        <AnalyticsPage onBack={() => setActivePage('main')} />
+      ) : (
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {renderStatusBanner()}
+          
+          {searchResults.length === 0 && searchHistory.length === 0 && (
+            <>
+              {renderHeroSection()}
+              <QuickSearch onSearch={handleSearch} className="mb-12" />
+            </>
+          )}
 
-        {/* Search Bar */}
-        <div className="mb-8">
-          <SearchBar 
-            onSearch={handleSearch}
-            onClear={handleClearSearch}
-            isLoading={isLoading}
-          />
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-              <p className="text-red-800">{error}</p>
-            </div>
+          {/* Search Bar */}
+          <div className="mb-8">
+            <SearchBar 
+              onSearch={handleSearch}
+              onClear={handleClearSearch}
+              isLoading={isLoading}
+            />
           </div>
-        )}
 
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <div className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Search Results ({searchResults.length})
-              </h2>
-              {isLoading && (
-                <div className="flex items-center text-primary-600">
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  <span className="text-sm">Loading...</span>
-                </div>
-              )}
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                <p className="text-red-800">{error}</p>
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {searchResults.map((food) => (
-                <FoodCard
-                  key={food.fdcId}
-                  food={food}
-                  onClick={handleFoodClick}
+          )}
+
+          {/* Search Results */}
+          {searchResults.length > 0 && (
+            <div className="mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Search Results ({searchResults.length})
+                </h2>
+                {isLoading && (
+                  <div className="flex items-center text-primary-600">
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    <span className="text-sm">Loading...</span>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {searchResults.map((food) => (
+                  <FoodCard
+                    key={food.fdcId}
+                    food={food}
+                    onClick={handleFoodClick}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Search History and Stats */}
+          {searchHistory.length > 0 && (
+            <>
+              <DatabaseStats searchHistory={searchHistory} />
+              <div className="mb-8">
+                <HistoryTable
+                  history={searchHistory}
+                  onViewDetails={handleFoodClick}
+                  onClearHistory={handleClearHistory}
                 />
-              ))}
-            </div>
-          </div>
-        )}
+              </div>
+            </>
+          )}
 
-        {/* Search History and Stats */}
-        {searchHistory.length > 0 && (
-          <>
-            <DatabaseStats searchHistory={searchHistory} />
-            <div className="mb-8">
-              <HistoryTable
-                history={searchHistory}
-                onViewDetails={handleFoodClick}
-                onClearHistory={handleClearHistory}
-              />
+          {/* Empty State */}
+          {searchResults.length === 0 && searchHistory.length === 0 && !isLoading && (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <Utensils className="h-16 w-16 mx-auto" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Start Your Nutrition Journey
+              </h3>
+              <p className="text-gray-500 max-w-md mx-auto">
+                Search for any food item above to discover its nutritional profile, 
+                including detailed macro and micronutrient information.
+              </p>
             </div>
-          </>
-        )}
-
-        {/* Empty State */}
-        {searchResults.length === 0 && searchHistory.length === 0 && !isLoading && (
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <Utensils className="h-16 w-16 mx-auto" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Start Your Nutrition Journey
-            </h3>
-            <p className="text-gray-500 max-w-md mx-auto">
-              Search for any food item above to discover its nutritional profile, 
-              including detailed macro and micronutrient information.
-            </p>
-          </div>
-        )}
-      </main>
+          )}
+        </main>
+      )}
 
       {/* Food Details Modal */}
       <FoodDetailsModal
@@ -383,14 +415,6 @@ function MainApp() {
           isOpen={isAuthModalOpen}
           onClose={() => setIsAuthModalOpen(false)}
           initialMode="login"
-        />
-      )}
-
-      {/* User Dashboard */}
-      {isDashboardOpen && (
-        <UserDashboard
-          isOpen={isDashboardOpen}
-          onClose={handleCloseDashboard}
         />
       )}
 

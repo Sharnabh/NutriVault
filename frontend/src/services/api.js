@@ -217,6 +217,30 @@ export const nutritionAPI = {
       throw new Error(error.response?.data?.error || 'Failed to export PDF report');
     }
   },
+
+  // Edit a meal (protected)
+  updateMeal: async (idToken, mealId, mealData) => {
+    try {
+      const response = await api.put(`/api/meals/${mealId}`, mealData, {
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to update meal');
+    }
+  },
+
+  // Delete a meal (protected)
+  deleteMeal: async (idToken, mealId) => {
+    try {
+      const response = await api.delete(`/api/meals/${mealId}`, {
+        headers: { Authorization: `Bearer ${idToken}` }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Failed to delete meal');
+    }
+  },
 };
 
 export default api;

@@ -14,7 +14,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { login, signup } = useAuth();
+  const { login, signup, signInWithGoogle } = useAuth();
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -240,6 +240,34 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                 {mode === 'login' ? 'Sign up' : 'Sign in'}
               </button>
             </p>
+          </div>
+
+          {/* Google Login Button */}
+          <div className="px-6 pb-6">
+            <div className="flex items-center my-4">
+              <div className="flex-grow border-t border-gray-200"></div>
+              <span className="mx-3 text-gray-400 text-sm">or</span>
+              <div className="flex-grow border-t border-gray-200"></div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setIsLoading(true);
+                setError("");
+                const result = await signInWithGoogle();
+                setIsLoading(false);
+                if (result.success) {
+                  onClose();
+                } else {
+                  setError(result.error || "Google sign-in failed");
+                }
+              }}
+              className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 rounded-md py-2 px-4 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading}
+            >
+              <svg className="h-5 w-5" viewBox="0 0 48 48"><g><path fill="#4285F4" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.23l6.85-6.85C35.64 2.36 30.18 0 24 0 14.82 0 6.71 5.82 2.69 14.09l7.98 6.2C12.13 13.16 17.57 9.5 24 9.5z"/><path fill="#34A853" d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.54 2.9-2.18 5.36-4.65 7.03l7.19 5.6C43.98 37.13 46.1 31.3 46.1 24.55z"/><path fill="#FBBC05" d="M10.67 28.29c-1.01-2.99-1.01-6.21 0-9.2l-7.98-6.2C.89 16.14 0 19.01 0 22c0 2.99.89 5.86 2.69 8.11l7.98-6.2z"/><path fill="#EA4335" d="M24 44c6.18 0 11.64-2.04 15.54-5.54l-7.19-5.6c-2.01 1.35-4.59 2.14-8.35 2.14-6.43 0-11.87-3.66-14.33-8.79l-7.98 6.2C6.71 42.18 14.82 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></g></svg>
+              <span className="text-gray-700 font-medium">Sign in with Google</span>
+            </button>
           </div>
         </form>
       </div>

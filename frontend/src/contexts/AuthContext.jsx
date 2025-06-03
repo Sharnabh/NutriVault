@@ -5,7 +5,9 @@ import {
   createUserWithEmailAndPassword, 
   signOut,
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { nutritionAPI } from '../services/api';
@@ -113,6 +115,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      return { success: true, user: result.user };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const getIdToken = async () => {
     if (user) {
       return await user.getIdToken();
@@ -130,7 +142,8 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     getIdToken,
     setUserProfile,
-    refreshUserProfile
+    refreshUserProfile,
+    signInWithGoogle
   };
 
   return (
