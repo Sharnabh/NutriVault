@@ -17,14 +17,78 @@ import io
 import firebase_admin
 from firebase_admin import credentials, auth
 from functools import wraps
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=['http://localhost:5175', 'http://192.168.200.109:5175', 'http://localhost:5176', 'http://192.168.200.109:5176'], 
-     methods=['GET', 'POST', 'PUT', 'DELETE'], 
-     allow_headers=['Content-Type', 'Authorization'])
+CORS(app, origins=[
+    'http://localhost:5175',
+    'http://192.168.29.104:5175'
+], methods=['GET', 'POST', 'PUT', 'DELETE'],
+   allow_headers=['Content-Type', 'Authorization'])
+
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///nutrivault.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+# Database Models
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    firebase_uid = db.Column(db.String, unique=True, nullable=False)
+    email = db.Column(db.String, nullable=False)
+    age = db.Column(db.Integer)
+    weight = db.Column(db.Float)
+    height = db.Column(db.Float)
+    activity_level = db.Column(db.String)
+    dietary_goal = db.Column(db.String)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class DietaryGoal(db.Model):
+    __tablename__ = 'dietary_goals'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    goal_type = db.Column(db.String, nullable=False)
+    target_calories = db.Column(db.Integer)
+    target_protein = db.Column(db.Float)
+    target_carbs = db.Column(db.Float)
+    target_fat = db.Column(db.Float)
+    current_weight = db.Column(db.Float)
+    target_weight = db.Column(db.Float)
+    activity_level = db.Column(db.String)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class MealLog(db.Model):
+    __tablename__ = 'meal_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    fdc_id = db.Column(db.String, nullable=False)
+    food_name = db.Column(db.String, nullable=False)
+    serving_size = db.Column(db.Float, nullable=False)
+    serving_unit = db.Column(db.String, nullable=False)
+    calories = db.Column(db.Float, nullable=False)
+    protein = db.Column(db.Float)
+    carbs = db.Column(db.Float)
+    fat = db.Column(db.Float)
+    meal_type = db.Column(db.String)
+    logged_date = db.Column(db.Date, nullable=False)
+    logged_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class SearchHistory(db.Model):
+    __tablename__ = 'search_history'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    fdc_id = db.Column(db.String, nullable=False)
+    food_name = db.Column(db.String, nullable=False)
+    searched_at = db.Column(db.DateTime, default=datetime.utcnow)
+    nutrition_data = db.Column(db.Text)
 
 # Firebase Configuration
 firebase_config_path = os.getenv('FIREBASE_CONFIG_PATH', 'firebase-service-account.json')
@@ -785,18 +849,27 @@ def get_food_details(fdc_id):
         }), 500
 
 @app.route('/api/history', methods=['GET'])
+@firebase_auth_required
 def get_history():
-    """Get search history"""
+    """Get search history for the current user"""
     try:
+        firebase_uid = request.user['uid']
         conn = sqlite3.connect('nutrivault.db')
         cursor = conn.cursor()
+        # Get user ID
+        cursor.execute('SELECT id FROM users WHERE firebase_uid = ?', (firebase_uid,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        user_id = user_row[0]
+        # Query only this user's history
         cursor.execute('''
             SELECT fdc_id, food_name, searched_at, nutrition_data 
             FROM search_history 
+            WHERE user_id = ?
             ORDER BY searched_at DESC 
             LIMIT 20
-        ''')
-        
+        ''', (user_id,))
         history = []
         for row in cursor.fetchall():
             history.append({
@@ -805,68 +878,55 @@ def get_history():
                 'searchedAt': row[2],
                 'nutritionData': json.loads(row[3]) if row[3] else None
             })
-        
         conn.close()
-        
-        return jsonify({
-            'success': True,
-            'history': history
-        })
-        
+        return jsonify({'success': True, 'history': history})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/history', methods=['POST'])
+@firebase_auth_required
 def add_to_history():
-    """Add a food item to search history"""
+    """Add a food item to search history for the current user"""
     try:
         data = request.get_json()
         fdc_id = data.get('fdcId')
         food_name = data.get('foodName')
         nutrition_data = data.get('nutritionData')
-        
+        firebase_uid = request.user['uid']
         conn = sqlite3.connect('nutrivault.db')
         cursor = conn.cursor()
-        
-        # Check if item already exists in recent history
+        # Get user ID
+        cursor.execute('SELECT id FROM users WHERE firebase_uid = ?', (firebase_uid,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        user_id = user_row[0]
+        # Check if item already exists in recent history for this user
         cursor.execute('''
             SELECT id FROM search_history 
-            WHERE fdc_id = ? AND datetime(searched_at) > datetime('now', '-1 day')
-        ''', (fdc_id,))
-        
+            WHERE user_id = ? AND fdc_id = ? AND datetime(searched_at) > datetime('now', '-1 day')
+        ''', (user_id, fdc_id))
         if not cursor.fetchone():
             # Add new entry
             cursor.execute('''
-                INSERT INTO search_history (fdc_id, food_name, nutrition_data)
-                VALUES (?, ?, ?)
-            ''', (fdc_id, food_name, json.dumps(nutrition_data)))
-            
-            # Keep only last 50 entries
+                INSERT INTO search_history (user_id, fdc_id, food_name, nutrition_data)
+                VALUES (?, ?, ?, ?)
+            ''', (user_id, fdc_id, food_name, json.dumps(nutrition_data)))
+            # Keep only last 50 entries for this user
             cursor.execute('''
                 DELETE FROM search_history 
-                WHERE id NOT IN (
+                WHERE user_id = ? AND id NOT IN (
                     SELECT id FROM search_history 
+                    WHERE user_id = ?
                     ORDER BY searched_at DESC 
                     LIMIT 50
                 )
-            ''')
-        
+            ''', (user_id, user_id))
         conn.commit()
         conn.close()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Added to history'
-        })
-        
+        return jsonify({'success': True, 'message': 'Added to history'})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/health')
 def health_check():
@@ -994,6 +1054,18 @@ def delete_meal(meal_id):
         return jsonify({'success': True, 'message': 'Meal deleted successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def add_user_id_to_search_history():
+    conn = sqlite3.connect('nutrivault.db')
+    cursor = conn.cursor()
+    try:
+        cursor.execute('ALTER TABLE search_history ADD COLUMN user_id INTEGER')
+    except Exception:
+        pass  # Column may already exist
+    conn.commit()
+    conn.close()
+
+add_user_id_to_search_history()
 
 if __name__ == '__main__':
     init_db()

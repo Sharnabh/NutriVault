@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { auth } from '../config/firebase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5003';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://192.168.29.104:5003';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,6 +10,24 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Request interceptor for adding auth token
+api.interceptors.request.use(
+  async (config) => {
+    // Get the current user
+    const user = auth.currentUser;
+    if (user) {
+      // Get the token
+      const token = await user.getIdToken();
+      // Add it to the headers
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Request interceptor for logging
 api.interceptors.request.use(
